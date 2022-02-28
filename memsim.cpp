@@ -1,15 +1,17 @@
-#include "algos.h"
 #include <iostream>
 #include <string>
 #include <vector>
 #include<bits/stdc++.h>
 using namespace std; 
 
+int events = 0, reads = 0, writes = 0;
+
 struct pageTableEntry{
     char rw; 
     int address; 
     bool dirty; 
 };
+
 void fifo(vector<pageTableEntry> pageTable, int nframes);
 
 int main(int argc, char** argv){
@@ -18,19 +20,23 @@ int main(int argc, char** argv){
     int nframes, p, algoNum;
     vector<pageTableEntry> pageTable;
 
-    fileName = argv[1];
-    nframes = atoi(argv[2]);
-    algo = argv[3];
-    if(algo == "fifo") algoNum = 0;
-    else if(algo == "lru") algoNum = 1;
-    if(argv[3] == "vms"){
-        algoNum = 2;
-        p =  atoi(argv[4]);
-        mode = argv[5];  
-    }
-    else{
-        mode = argv[4];
-    }
+    // if(argv[1] != NULL){
+    //     fileName = argv[1];
+    //     nframes = atoi(argv[2]);
+    //     algo = argv[3];
+    //     if(algo == "fifo") algoNum = 0;
+    //     else if(algo == "lru") algoNum = 1;
+    //     if(argv[3] == "vms"){
+    //         algoNum = 2;
+    //         p =  atoi(argv[4]);
+    //         mode = argv[5];  
+    //     }
+    //     else{
+    //         mode = argv[4];
+    //     }
+    // }
+   
+    fileName = "bzip.trace"; nframes = 64; algo = "fifo"; algoNum = 0; mode = "quiet"; 
 
     const char *a = fileName.c_str();
     FILE * fp;
@@ -84,7 +90,7 @@ int main(int argc, char** argv){
 void fifo(vector<pageTableEntry> pageTable, int nframes){
 	unordered_set<int> frameTable;
 	queue<int> q;
-	for (int i=0; i<1048576; i++){ 
+	for (int i=0; i<1000000; i++){ 
 		if (frameTable.size() < nframes){ //if the frameTable is not fulll
 			if (frameTable.find(pageTable[i].address)==frameTable.end()){ //if the desired page is not in the frame table
 				if(pageTable[i].rw == 'R'){//read not in the frame table .... count as read and load in page table
@@ -106,7 +112,7 @@ void fifo(vector<pageTableEntry> pageTable, int nframes){
 				int val = q.front(); //val is = to the front of the queue
 				//find the corresponding page that contains the address of val and check if it was dirty
 				//	if it was dirty then count it as a write 
-				for(int i = 0; i < 1048576; i++){
+				for(int i = 0; i < 1000000; i++){
 					if(pageTable[i].address == val && pageTable[i].dirty == 1)
 						writes++;
 				} 
@@ -118,3 +124,26 @@ void fifo(vector<pageTableEntry> pageTable, int nframes){
 		}
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
