@@ -18,10 +18,6 @@ int main(int argc, char** argv){
     int nframes, p, algoNum;
     vector<pageTableEntry> pageTable;
 
-    for (int i = 0; i < 1048576; i++) { //all the page table entries are -1 untill assigned a
-        pageTable[i].address = -1;  //a frameNumber within the frame table which the algo decides
-    }
-
     fileName = argv[1];
     nframes = atoi(argv[2]);
     algo = argv[3];
@@ -74,19 +70,19 @@ int main(int argc, char** argv){
         return -1;
         break;
     }
-/*
+
     cout << "Events: " << events << endl
          << "Table frames: " << nframes << endl
          << "Read count: " << reads << endl
-        << "Write count: " << writes << endl;
-*/
+         << "Write count: " << writes << endl;
+
     fclose (fp);
     return 0;
 }
 
 
 void fifo(vector<pageTableEntry> pageTable, int nframes){
-	/*unordered_set<int> frameTable;
+	unordered_set<int> frameTable;
 	queue<int> q;
 	for (int i=0; i<1048576; i++){ 
 		if (frameTable.size() < nframes){ //if the frameTable is not fulll
@@ -120,5 +116,5 @@ void fifo(vector<pageTableEntry> pageTable, int nframes){
 				q.push(pageTable[i].address); //inserting the new desired page into the back of the queue
 			}
 		}
-	}*/
+	}
 }
