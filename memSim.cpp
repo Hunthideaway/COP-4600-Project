@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
     return 0; // end
 }
 
-void fifo(char *traceFile, unsigned int numberFrames, char *exec) // function for fifo
+void fifo(char *traceFile, unsigned int numFrames, char *exec) // function for fifo
 {
     // variable declarations
     int faults = 0, reads = 0, writes = 0, count = 0;
@@ -95,7 +95,7 @@ void fifo(char *traceFile, unsigned int numberFrames, char *exec) // function fo
     while (!feof(file))
     {                                                                         // continue until you reach end of file
         pageData var(0, ' ');                                                 // intialize the struct parameters
-        deque<pageData>::iterator temp = (find(buf.begin(), buf.end(), var)); // iterator variable
+        //deque<pageData>::iterator temp = (find(buf.begin(), buf.end(), var)); // iterator variable
         unsigned int address;
         char rw;
         int verify = fscanf(file, "%x %c", &address, &rw); // scan in data from file
@@ -105,9 +105,8 @@ void fifo(char *traceFile, unsigned int numberFrames, char *exec) // function fo
         {                     // is the page entry is a write
             var.dirty = true; // set dirty to true
         }
-        else var.dirty = false; 
-       // else
-        //var.dirty = false; // else page is not dirty
+        else var.dirty = false;  
+
 
         if (verify <= 0)
         { // checking if the line was emtpy or null then we move to the next
@@ -120,36 +119,34 @@ void fifo(char *traceFile, unsigned int numberFrames, char *exec) // function fo
         { // if we reach the end of the buffer and page is not in page table, page fault
             faults++;
             reads++;
-            // if we still have space available
             buf.push_back(var);
             if (strcmp(exec, "debug") == 0)
                 cout << "Page fault" << endl; // inform the user of the page fault
 
-            if (buf.size() > numberFrames)
+            if (buf.size() > numFrames)
             {                                // if there is not space available
                 pageData var2 = buf.front(); // go to front of deque
                 if (strcmp(exec, "debug") == 0)
-                   // cout << "The page was evicted!\n"; // if the user selected debug, provide information
+                    cout << "The page was evicted!\n"; // if the user selected debug, provide information
                 if (var2.dirty == true)
                     writes++; // if the page is dirty increment writes
                 if (strcmp(exec, "debug") == 0 && var2.dirty == true)
                     cout << "The page has been written to the disk\n"; // if both cases are true
                 buf.pop_front();                                       // pop the front element
             }
+            
         }
 
         else
-        {
-            if (strcmp(exec, "debug") == 0)                               // debug selection
-                cout << "The page has been updated within the memory!\n"; // user information
+        {   deque<pageData>::iterator temp = (find(buf.begin(), buf.end(), var));
             if (var.rw == 'W')
-                temp->dirty = true; // if rw is write then temp is dirty
+                temp->dirty = true; // if rw is write then temp is dirty 
         }
     }
     if (strcmp(exec, "quiet") == 0 || strcmp(exec, "debug") == 0) // if the user selects quiet or debug
     {
         // print out the information to the terminal for the user
-        cout << "Frames: " << numberFrames << "\n";
+        cout << "Frames: " << numFrames << "\n";
         cout << "Count: " << count << "\n";
         cout << "Reads: " << reads << "\n";
         cout << "Writes: " << writes << "\n";
