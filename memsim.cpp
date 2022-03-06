@@ -37,7 +37,9 @@ struct pageTableEntry{
     }
 };
 
-void fifo(vector<pageTableEntry> pageTable, int nframes);
+void fifo(vector<pageTableEntry> pageTable, int nframes, string mode);
+void lru(vector<pageTableEntry> pageTable, int nframes, string mode);
+
 
 int main(int argc, char** argv){
     enum {FIFO, LRU, VMS};
@@ -45,23 +47,21 @@ int main(int argc, char** argv){
     int nframes, p, algoNum;
     vector<pageTableEntry> pageTable;
 
-    // if(argv[1] != NULL){
-    //     fileName = argv[1];
-    //     nframes = atoi(argv[2]);
-    //     algo = argv[3];
-    //     if(algo == "fifo") algoNum = 0;
-    //     else if(algo == "lru") algoNum = 1;
-    //     if(argv[3] == "vms"){
-    //         algoNum = 2;
-    //         p =  atoi(argv[4]);
-    //         mode = argv[5];  
-    //     }
-    //     else{
-    //         mode = argv[4];
-    //     }
-    // }
-   
-    fileName = "bzip.trace"; nframes = 64; algo = "fifo"; algoNum = 0; mode = "quiet"; 
+    if(argv[1] != NULL){
+        fileName = argv[1];
+        nframes = atoi(argv[2]);
+        algo = argv[3];
+        if(algo == "fifo") algoNum = 0;
+        else if(algo == "lru") algoNum = 1;
+        if(argv[3] == "vms"){
+            algoNum = 2;
+            p =  atoi(argv[4]);
+            mode = argv[5];  
+        }
+        else{
+            mode = argv[4];
+        }
+    }
 
     const char *a = fileName.c_str();
     FILE * fp;
@@ -87,10 +87,10 @@ int main(int argc, char** argv){
     switch (algoNum)
     {
     case FIFO:
-        fifo(pageTable, nframes);
+        fifo(pageTable, nframes, mode);
         break;
     case LRU:
-        //lru(pageTable, nframes);
+        lru(pageTable, nframes, mode);
         break;
     case VMS:
         //vms(pageTable, nframes, p);
@@ -130,85 +130,124 @@ bool pageFound(deque<pageTableEntry> d, pageTableEntry p){
 
 void updateWrite(deque <pageTableEntry>& d, pageTableEntry p){
     for(int k = 0; k < d.size(); k++){
-            if(d[k].address == p.address){
+        if(d[k].address == p.address){
             d[k].rw = 'W';
         }
     }
 }
 
-void fifo(vector<pageTableEntry> pageTable, int nframes){
+void fifo(vector<pageTableEntry> pageTable, int nframes, string mode){
 	deque <pageTableEntry> deq;
+    cout << "fifo: " << endl;
     for(int i = 0; i < pageTable.size(); i++){
+        if(mode == "debug") printDeq(deq);
         if(pageFound(deq, pageTable[i]) == true){   //page is in fifo 
+            if(mode == "debug") cout << "page found: " << pageTable[i].address << " " << pageTable[i].rw << endl;
             if(pageTable[i].rw == 'W'){
+                if(mode == "debug") cout << "Updating rw of: " << pageTable[i].address << endl;
                 updateWrite(deq, pageTable[i]);
             }
         }
         else if(pageFound(deq, pageTable[i]) == false){ //page is not in fifo
+            if(mode == "debug") cout << "page not found in fifo: " << pageTable[i].address << " " << pageTable[i].rw << endl;
             if(deq.size() < nframes){      //fifo not full
+                if(mode == "debug") cout << "deq size: " << deq.size() << " fifo not full" << endl;
                 reads++;
+                if(mode == "debug") cout << "incrementing reads ... read = " << reads << endl;
+                if(mode == "debug") cout << "pushing " << pageTable[i].address << " " << pageTable[i].rw << endl;
                 deq.push_back(pageTable[i]);
             }    
             else if(deq.size() == nframes){                          //fifo full
+                if(mode == "debug") cout << "deq size: " << deq.size() << " fifo full" << endl;
                 reads++;
+                if(mode == "debug") cout << "incrementing reads ... read = " << reads << endl;
                 pageTableEntry victim = deq.front();
                 if(victim.rw == 'W'){
+                    if(mode == "debug") cout << victim.address << " " << victim.rw << " was a write "<< endl;
                     writes++;
+                    if(mode == "debug") cout << "incremted writes to " << writes << endl;
                 }
+                if(mode == "debug") cout << "Evicting entry: " << victim.address << " " << victim.rw << endl;
                 deq.pop_front();
+                if(mode == "debug") cout << "pushing entry: " << pageTable[i].address << " " << pageTable[i].rw << endl;
                 deq.push_back(pageTable[i]);
             }
         }
     }
 }
 
+void move_front(deque <pageTableEntry>& d, pageTableEntry p){
+    int index;
+    bool perserveWrite = false; //perserve write is some voodoo 
 
-// void fifo(vector<pageTableEntry> pageTable, int nframes){
-// 	deque <pageTableEntry> deq;
-//     for(int i = 0; i < pageTable.size(); i++){
-//         //printDeq(deq);
-//         if(pageFound(deq, pageTable[i]) == true){   //page is in fifo 
-//             //cout << "page found: " << pageTable[i].address << " " << pageTable[i].rw << endl;
-//             if(pageTable[i].rw == 'W'){
-//                 //cout << "Updating rw of: " << pageTable[i].address << endl;
-//                 for(int k = 0; k < deq.size(); k++){
-//                     if(deq[k].address == pageTable[i].address){
-//                         deq[k].rw = 'W';
-//                     }
-//                 }
-//             }
-//         }
-//         else if(pageFound(deq, pageTable[i]) == false){ //page is not in fifo
-//             //cout << "page not found in fifo: " << pageTable[i].address << " " << pageTable[i].rw << endl;
-//             if(deq.size() < nframes){      //fifo not full
-//                 //cout << "deq size: " << deq.size() << " fifo not full" << endl;
-//                 reads++;
-//                 //cout << "incrementing reads ... read = " << reads << endl;
-//                 //cout << "pushing " << pageTable[i].address << " " << pageTable[i].rw << endl;
-//                 deq.push_back(pageTable[i]);
-//             }    
-//             else if(deq.size() == nframes){                          //fifo full
-//                 //cout << "deq size: " << deq.size() << " fifo full" << endl;
-//                 reads++;
-//                 //cout << "incrementing reads ... read = " << reads << endl;
-//                 pageTableEntry victim = deq.front();
-//                 //cout << "Entry to be evicted: " << victim.address << " " << victim.rw << endl;
-//                 if(victim.rw == 'W'){
-//                     //cout << victim.address << " " << victim.rw << " was a write "<< endl;
-//                     writes++;
-//                     //cout << "incremted writes to " << writes << endl;
-//                 }
-//                 //cout << "Evicting entry: " << victim.address << " " << victim.rw << endl;
-//                 deq.pop_front();
-//                 //cout << "pushing entry: " << pageTable[i].address << " " << pageTable[i].rw << endl;
-//                 deq.push_back(pageTable[i]);
-//             }
-//         }
-//     }
-//      //for(int i = 0; i < pageTable.size(); i++){
-//         // cout << pageTable[i].address << " " << pageTable[i].rw << endl;
-//      //}
-// }
+    for(int i = 0; i < d.size(); i++){
+        if(d[i].address == p.address){
+            if(d[i].rw == 'W'){
+                perserveWrite = true;
+            }
+            index = i;
+            i = d.size();
+        }
+    }
+    deque<pageTableEntry>::iterator it;
+    it = d.begin();
+    for(int j = 0; j < index; j++){
+        it++;
+    }
+    d.erase(it);
+    if(perserveWrite){
+        pageTableEntry ne; //new entry to perserve write 
+        ne.address = p.address;
+        ne.rw = 'W';
+        d.push_front(ne);
+    }
+    else{
+        d.push_front(p);
+    }
+}
+
+
+void lru(vector<pageTableEntry> pageTable, int nframes, string mode){
+    cout << "LRU: " << endl;
+    deque <pageTableEntry> deq;
+    for(int i = 0; i < pageTable.size(); i++){
+        if(mode == "debug") printDeq(deq);
+        if(pageFound(deq, pageTable[i]) == true){   //page is in lru
+            if(mode == "debug") cout << "page found: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+            if(mode == "debug") cout << "Moving " << pageTable[i].address << " " << pageTable[i].rw << endl;
+            move_front(deq, pageTable[i]);
+            if(pageTable[i].rw == 'W'){
+               if(mode == "debug") cout << "Updating rw of: " << pageTable[i].address << endl;
+                updateWrite(deq, pageTable[i]);
+            }
+        }
+        else if(pageFound(deq, pageTable[i]) == false){ //page is not in lru
+            if(mode == "debug") cout << pageTable[i].address  << " " << pageTable[i].rw << " is not in lru" << endl;
+            if(deq.size() < nframes){      //lru not full
+                if(mode == "debug") cout << "lru is not full" << endl;
+                reads++;
+                if(mode == "debug") cout << "pushing to front: " << pageTable[i].address << " " << pageTable[i].rw  << endl;
+                deq.push_front(pageTable[i]); //adding new page to the front of lru
+            }
+            else if(deq.size() == nframes){  //lru full
+                reads++;
+                pageTableEntry victim = deq.back(); //eject the oldest page
+                if(victim.rw == 'W'){
+                    if(mode == "debug") cout << "Ejecting oldest page " << victim.address << " " << victim.rw << endl;
+                    if(mode == "debug") cout << "Incrementing writes..." << endl;
+                    writes++;
+                }
+                if(mode == "debug") cout << "Ejecting oldest page " << victim.address << " " << victim.rw << endl;
+                deq.pop_back();
+                if(mode == "debug") cout << "Pushing page to front: " << pageTable[i].address << " " << pageTable[i].rw  << endl;
+                deq.push_front(pageTable[i]); 
+            }        
+        }
+    }  
+}
+
+
+
 
 
 
