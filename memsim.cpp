@@ -39,6 +39,7 @@ struct pageTableEntry{
 
 void fifo(vector<pageTableEntry> pageTable, int nframes, string mode);
 void lru(vector<pageTableEntry> pageTable, int nframes, string mode);
+void vms(vector<pageTableEntry> pageTable, int nframes, int p, string mode);
 
 
 int main(int argc, char** argv){
@@ -53,9 +54,17 @@ int main(int argc, char** argv){
         algo = argv[3];
         if(algo == "fifo") algoNum = 0;
         else if(algo == "lru") algoNum = 1;
-        if(argv[3] == "vms"){
+        else if(algo == "vms"){
             algoNum = 2;
             p =  atoi(argv[4]);
+            if(p == 0){
+                algoNum = 0; //fifo
+                mode = argv[4];
+            }
+            else if(p == 100){
+                algoNum = 1; //lru
+                mode = argv[4];
+            }
             mode = argv[5];  
         }
         else{
@@ -93,7 +102,7 @@ int main(int argc, char** argv){
         lru(pageTable, nframes, mode);
         break;
     case VMS:
-        //vms(pageTable, nframes, p);
+        vms(pageTable, nframes, p, mode);
         break;
     default:
         cout << "no algoNum present" << endl;
@@ -110,8 +119,13 @@ int main(int argc, char** argv){
     return 0;
 }
 
-void printDeq(deque<pageTableEntry> d){
-    cout << "deq: " << endl;
+void printDeq(deque<pageTableEntry> d, int type){
+    if(type == 0){
+        cout << "fifo: " << endl;
+    }
+    else if(type == 1){
+        cout << "lru: " << endl;
+    }
     cout << "*************************************" << endl;
     for (int i=0; i<d.size(); i++) {
         cout << d[i].address << " " << d[i].rw << endl;
@@ -140,7 +154,7 @@ void fifo(vector<pageTableEntry> pageTable, int nframes, string mode){
 	deque <pageTableEntry> deq;
     cout << "fifo: " << endl;
     for(int i = 0; i < pageTable.size(); i++){
-        if(mode == "debug") printDeq(deq);
+        if(mode == "debug") printDeq(deq, 0);
         if(pageFound(deq, pageTable[i]) == true){   //page is in fifo 
             if(mode == "debug") cout << "page found: " << pageTable[i].address << " " << pageTable[i].rw << endl;
             if(pageTable[i].rw == 'W'){
@@ -211,7 +225,7 @@ void lru(vector<pageTableEntry> pageTable, int nframes, string mode){
     cout << "LRU: " << endl;
     deque <pageTableEntry> deq;
     for(int i = 0; i < pageTable.size(); i++){
-        if(mode == "debug") printDeq(deq);
+        if(mode == "debug") printDeq(deq, 1);
         if(pageFound(deq, pageTable[i]) == true){   //page is in lru
             if(mode == "debug") cout << "page found: " << pageTable[i].address << " " << pageTable[i].rw << endl;
             if(mode == "debug") cout << "Moving " << pageTable[i].address << " " << pageTable[i].rw << endl;
@@ -245,6 +259,291 @@ void lru(vector<pageTableEntry> pageTable, int nframes, string mode){
         }
     }  
 }
+
+
+void move_page_From_lru_to_back_fifo(deque <pageTableEntry>& fifo, deque <pageTableEntry>& lru, pageTableEntry p){
+    int index;
+    //index in lru at which page is present
+    for(int i = 0; i < lru.size(); i++){
+        if(lru[i].address == p.address){
+            index = i;
+            i = lru.size();
+        }
+    }
+    deque<pageTableEntry>::iterator it;
+    it = lru.begin();
+    for(int j = 0; j < index; j++){
+        it++;
+    }
+    pageTableEntry pa = *it;
+    lru.erase(it);
+    fifo.push_back(pa);
+}
+
+void move_fifo_front_to_lru_front(deque <pageTableEntry>& fifo, deque <pageTableEntry>& lru){
+    pageTableEntry victim = fifo.front();
+    lru.push_front(victim);
+    fifo.pop_front();
+}
+
+void eject_lru_page(deque <pageTableEntry>& lru){
+    pageTableEntry victim = lru.back(); //eject the oldest page
+    if(victim.rw == 'W'){
+        writes++;
+    }
+    lru.pop_back();
+}
+
+
+void vms(vector<pageTableEntry> pageTable, int nframes, int p, string mode){
+    deque <pageTableEntry> fifo;
+    deque <pageTableEntry> lru;
+    int fifoMaxFrames = (nframes * p) / 100;
+    int lruMaxFrames = nframes - fifoMaxFrames;
+    if (mode == "debug") cout << "fifoMaxFrames: " << fifoMaxFrames << " lruMaxFrames: " << lruMaxFrames << endl;
+    for(int i = 0; i < pageTable.size(); i++){
+
+        if (mode == "debug") cout << "Incoming page: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+        if (mode == "debug") cout << endl;
+        if (mode == "debug") printDeq(fifo, 0); 
+        if (mode == "debug") printDeq(lru, 1);
+        if (mode == "debug") cout << endl;
+
+        if(pageFound(lru, pageTable[i]) == true){ //page is in lru
+            if (mode == "debug") cout << "Page found in lru: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+            if(pageTable[i].rw == 'W'){
+                if (mode == "debug") cout << "Page: " << pageTable[i].address << " " << pageTable[i].rw << " is a W, updating lru..." << endl;
+                updateWrite(lru, pageTable[i]);
+            } 
+            if (mode == "debug") cout << "Moving page: " << pageTable[i].address << " " << pageTable[i].rw << " from lru to back fifo..." << endl;
+            move_page_From_lru_to_back_fifo(fifo, lru, pageTable[i]);
+            if (mode == "debug") cout << "Front fifo to lru front.... "<< endl;
+            move_fifo_front_to_lru_front(fifo, lru);
+        }
+        
+        if(pageFound(fifo, pageTable[i]) == true){   //page is in fifo
+            if (mode == "debug") cout << "Page found in fifo: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+            if(pageTable[i].rw == 'W')
+                updateWrite(fifo, pageTable[i]);
+        }
+        else if(pageFound(fifo, pageTable[i]) == false){                        //page is not in fifo
+            if (mode == "debug") cout << "Page not found in fifo: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+            if(fifo.size() < fifoMaxFrames){                                         //fifo not full
+                if (mode == "debug") cout << "Fifo not full, Incrementing current reads: " << reads << " and pushing " << pageTable[i].address << " " << pageTable[i].rw << " to back fifo..." << endl;
+                reads++;
+                fifo.push_back(pageTable[i]);
+            }
+            else if(fifo.size() == fifoMaxFrames && lru.size() < lruMaxFrames){      //fifo full and lru not full
+                if (mode == "debug") cout << "Fifo full and lru not full" << endl << "Moving fifo front to lru front..." << endl << "Pushing page: " << pageTable[i].address << " " << pageTable[i].rw << " to back of fifo..." << endl;
+                reads++;
+                move_fifo_front_to_lru_front(fifo, lru);
+                fifo.push_back(pageTable[i]);
+            }
+            else if(pageFound(lru, pageTable[i]) == false && fifo.size() == fifoMaxFrames && lru.size() == lruMaxFrames){  //page not in fifo or lru , both full
+                reads++;
+                if (mode == "debug") cout << "Page is not in fifo or lru, both are full" << endl;
+                if (mode == "debug") cout << "Ejecting oldest lru page..." << endl;
+                eject_lru_page(lru); //writes incremented here
+                if (mode == "debug") cout << "Moving fifo front to lru front..." << endl;
+                move_fifo_front_to_lru_front(fifo, lru);
+                if (mode == "debug") cout << "Pushing page: " << pageTable[i].address << " " << pageTable[i].rw << " to the back of fifo..." << endl;
+                fifo.push_back(pageTable[i]);
+            }
+        }
+
+    }
+}
+
+
+
+
+// void move_page_From_lru_to_back_fifo(deque <pageTableEntry>& fifo, deque <pageTableEntry>& lru, pageTableEntry p){
+//     int index;
+//     //index in lru at which page is present
+//     for(int i = 0; i < lru.size(); i++){
+//         if(lru[i].address == p.address){
+//             index = i;
+//             i = lru.size();
+//         }
+//     }
+//     deque<pageTableEntry>::iterator it;
+//     it = lru.begin();
+//     for(int j = 0; j < index; j++){
+//         it++;
+//     }
+//     pageTableEntry pa = *it;
+//     lru.erase(it);
+//     fifo.push_back(pa);
+// }
+
+// void move_fifo_front_to_lru_front(deque <pageTableEntry>& fifo, deque <pageTableEntry>& lru){
+//     pageTableEntry victim = fifo.front();
+//     //cout << "Fifo front:  " << victim.address << " " << victim.rw << endl;
+//     //cout << "Pushing " << victim.address << " " << victim.rw << " to front of lru..." << endl;
+//     lru.push_front(victim);
+//     //cout << "Popping front of fifo..." << endl;
+//     fifo.pop_front();
+// }
+
+// void eject_lru_page(deque <pageTableEntry>& lru){
+//     pageTableEntry victim = lru.back(); //eject the oldest page
+//     //cout << "Back of lru = " << victim.address << " " << victim.rw << endl;
+//     if(victim.rw == 'W'){
+//         //cout << "victim is a W, incrementing writes" << endl;
+//         writes++;
+//     }
+//     lru.pop_back();
+// }
+
+
+// void vms(vector<pageTableEntry> pageTable, int nframes, int p, string mode){
+//     deque <pageTableEntry> fifo;
+//     deque <pageTableEntry> lru;
+//     int fifoMaxFrames = (nframes * p) / 100;
+//     int lruMaxFrames = nframes - fifoMaxFrames;
+//     if (mode == "debug") cout << "fifoMaxFrames: " << fifoMaxFrames << " lruMaxFrames: " << lruMaxFrames << endl;
+//     for(int i = 0; i < pageTable.size(); i++){
+
+//         // if (mode == "debug") cout << "Incoming page: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+//         // if (mode == "debug") cout << endl;
+//         // if (mode == "debug") printDeq(fifo, 0); 
+//         // if (mode == "debug") printDeq(lru, 1);
+//         // if (mode == "debug") cout << endl;
+
+//         if(pageFound(lru, pageTable[i]) == true){ //page is in lru
+//             //if (mode == "debug") cout << "Page found in lru: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+//             if(pageTable[i].rw == 'W') 
+//                 //if (mode == "debug") cout << "Page: " << pageTable[i].address << " " << pageTable[i].rw << " is a W, updating lru..." << endl;
+//                 updateWrite(lru, pageTable[i]);
+//             //if (mode == "debug") cout << "Moving page: " << pageTable[i].address << " " << pageTable[i].rw << " from lru to back fifo..." << endl;
+//             move_page_From_lru_to_back_fifo(fifo, lru, pageTable[i]);
+//             //if (mode == "debug") cout << "Front fifo to lru front.... "<< endl;
+//             move_fifo_front_to_lru_front(fifo, lru);
+//         }
+        
+//         if(pageFound(fifo, pageTable[i]) == true){   //page is in fifo
+//             //if (mode == "debug") cout << "Page found in fifo: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+//             if(pageTable[i].rw == 'W')
+//                 //if (mode == "debug") cout << "Page: " << pageTable[i].address << " " << pageTable[i].rw << " is a W, updating fifo..." << endl;
+//                 updateWrite(fifo, pageTable[i]);
+//         }
+//         else if(pageFound(fifo, pageTable[i]) == false){                        //page is not in fifo
+//             //if (mode == "debug") cout << "Page not found in fifo: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+//             if(fifo.size() < fifoMaxFrames){                                         //fifo not full
+//                 //if (mode == "debug") cout << "Fifo not full, Incrementing current reads: " << reads << " and pushing " << pageTable[i].address << " " << pageTable[i].rw << " to back fifo..." << endl;
+//                 reads++;
+//                 fifo.push_back(pageTable[i]);
+//             }
+//             else if(fifo.size() == fifoMaxFrames && lru.size() < lruMaxFrames){      //fifo full and lru not full
+//                 //if (mode == "debug") cout << "Fifo full and lru not full" << endl << "Moving fifo front to lru front..." << endl << "Pushing page: " << pageTable[i].address << " " << pageTable[i].rw << " to back of fifo..." << endl;
+//                 reads++;
+//                 move_fifo_front_to_lru_front(fifo, lru);
+//                 fifo.push_back(pageTable[i]);
+//             }
+//             else if(pageFound(lru, pageTable[i]) == false && fifo.size() == fifoMaxFrames && lru.size() == lruMaxFrames){  //page not in fifo or lru , both full
+//                 reads++;
+//                 if (mode == "debug") cout << "Incoming page: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+//                 if (mode == "debug") cout << endl;
+//                 if (mode == "debug") printDeq(fifo, 0); 
+//                 if (mode == "debug") printDeq(lru, 1);
+//                 if (mode == "debug") cout << endl;
+                
+                
+                
+//                 if (mode == "debug") cout << "Page is not in fifo or lru, both are full" << endl;
+//                 if (mode == "debug") cout << "Ejecting oldest lru page..." << endl;
+//                 eject_lru_page(lru); //writes incremented here
+//                 if (mode == "debug") cout << "Moving fifo front to lru front..." << endl;
+//                 move_fifo_front_to_lru_front(fifo, lru);
+//                 if (mode == "debug") cout << "Pushing page: " << pageTable[i].address << " " << pageTable[i].rw << " to the back of fifo..." << endl;
+//                 fifo.push_back(pageTable[i]);
+//             }
+//         }
+
+//     }
+// }
+
+
+
+
+
+
+
+
+
+// void vms(vector<pageTableEntry> pageTable, int nframes, int p, string mode){
+//     deque <pageTableEntry> fifo;
+//     deque <pageTableEntry> lru;
+//     int fifoMaxFrames = (nframes * p) / 100;
+//     int lruMaxFrames = nframes - fifoMaxFrames;
+//     if (mode == "debug") cout << "fifoMaxFrames: " << fifoMaxFrames << " lruMaxFrames: " << lruMaxFrames << endl;
+//     for(int i = 0; i < pageTable.size(); i++){
+//         if (mode == "debug") printDeq(fifo, 0); 
+//         if (mode == "debug") printDeq(lru, 1);
+        
+        
+
+
+
+
+
+//         if(pageFound(fifo, pageTable[i]) == false && pageFound(fifo, pageTable[i]) == false && fifo.size() == fifoMaxFrames && lru.size() == lruMaxFrames){ //page is not in fifo both are full
+//             if(mode == "debug") cout << "Page is not in fifo or lru, fifo and lru are both full, fifo size: " << fifo.size() << " lru size: " << lru.size() << endl;
+//             //eject oldest lru page
+//             if(mode == "debug") cout << "Ejecting oldest lru page " << endl;
+//             lru.pop_back();
+//             //move front of fifo to lru //this could cause errors as I don't know yet if the write will be perserved 
+//             move_fifo_front_to_lru_front(fifo, lru);
+//             //push page to the back fo fifo
+//             if(mode == "debug") cout << "Pushing page to back of fifo " << pageTable[i].address << " " << pageTable[i].rw << endl;
+//             fifo.push_back(pageTable[i]);
+//         }
+        
+//         if(pageFound(lru, pageTable[i]) == true && fifo.size() == fifoMaxFrames){ //page is in lru and fifo is full
+//             if(mode == "debug") cout << "Page is in lru: " << pageTable[i].address << " " << pageTable[i].rw << " and fifo is full" << endl;
+//             if(pageTable[i].rw == 'W'){
+//                 if(mode == "debug") cout << "Updating rw of: " << pageTable[i].address << " in fifo" << endl;
+//                 updateWrite(lru, pageTable[i]);
+//             }
+//             //move page found in lru to the back of fifo
+//             if(mode == "debug") cout << "Moving page from lru to back fifo..." << endl;
+//             move_page_From_lru_to_back_fifo(fifo, lru, pageTable[i]);
+//             //move front of fifo to lru //this could cause errors as I don't know yet if the write will be perserved 
+//             if(mode == "debug") cout << "Moving fifo front to lru..." << endl;
+//             move_fifo_front_to_lru_front(fifo, lru);
+//         }
+
+//         if(pageFound(fifo, pageTable[i]) == true){   //page is in fifo
+//             if(mode == "debug") cout << "page found in fifo: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+//             if(pageTable[i].rw == 'W'){
+//                 if(mode == "debug") cout << "Updating rw of: " << pageTable[i].address << " in fifo" << endl;
+//                 updateWrite(fifo, pageTable[i]);
+//             }
+//         }
+//         else if(pageFound(fifo, pageTable[i]) == false){ //page is not in fifo
+//             if(mode == "debug") cout << "page not found in fifo: " << pageTable[i].address << " " << pageTable[i].rw << endl;
+//             if(fifo.size() < fifoMaxFrames){      //fifo not full
+//                 if(mode == "debug") cout << "fifo size: " << fifo.size() << " fifo not full" << endl;
+//                 reads++;
+//                 if(mode == "debug") cout << "incrementing reads ... read = " << reads << endl;
+//                 if(mode == "debug") cout << "pushing " << pageTable[i].address << " " << pageTable[i].rw << " to back of fifo" << endl;
+//                 fifo.push_back(pageTable[i]);
+//             }
+//             else if(fifo.size() == fifoMaxFrames && lru.size() < lruMaxFrames){    //fifo full and lru not full
+//                 if(mode == "debug") cout << "fifo full , fifo size: " << fifo.size() << " " << "lru not full, lru size: " << lru.size() <<endl;
+//                 reads++;
+//                 if(mode == "debug") cout << "incrementing reads ... read = " << reads << endl;
+//                 pageTableEntry victim = fifo.front();
+//                 if(mode == "debug") cout << "Popping front entry of fifo " << victim.address << " " << victim.rw << endl;
+//                 fifo.pop_front();
+//                 if(mode == "debug") cout << "Pushing entry to front of LRU " << victim.address << " " << victim.rw << endl;
+//                 lru.push_front(victim);
+//                 //space now made in fifo push back page
+//                 fifo.push_back(pageTable[i]);
+//             }
+//         }
+//     }
+// }
 
 
 
