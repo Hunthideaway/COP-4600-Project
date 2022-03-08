@@ -64,7 +64,7 @@ int main(int argc, char** argv){
             p =  atoi(argv[4]);
             lmf = (nframes * p) / 100;
             fmf = nframes - lmf;
-            if(p == 0){
+            if(p < 2){
                 algoNum = 0; //fifo
                 mode = argv[4];
             }
@@ -367,10 +367,11 @@ void vms(vector<pageTableEntry> pageTable, int nframes, int p, string mode){
                 if (mode == "debug") cout << "Page is not in fifo or lru, both are full" << endl;
                 if (mode == "debug") cout << "Ejecting oldest lru page..." << endl;
                 eject_lru_page(lru); //writes incremented here
-                if (mode == "debug") cout << "Moving fifo front to lru front..." << endl;
+                if (mode == "sdebug") cout << "Moving fifo front to lru front..." << endl;
                 move_fifo_front_to_lru_front(fifo, lru);
                 if (mode == "debug") cout << "Pushing page: " << pageTable[i].address << " " << pageTable[i].rw << " to the back of fifo..." << endl;
                 fifo.push_back(pageTable[i]);
+                
             }
         }
 
